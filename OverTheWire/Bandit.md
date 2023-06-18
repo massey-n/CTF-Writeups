@@ -21,10 +21,6 @@ Ssh stands for **S**ecure **Sh**ell, and serves as a means to connect remotely t
 The instructions state that we need to connect to a specific port, which is not covered in the basic syntax. To find out more about nearly any command, simply type:
 ```man [command]``` This shows the manual for the command, which includes *switches*, or options, that can focus the command.
 
-This is the man page for ssh:
-
-
-
 Scroll through a bit, and keep an eye out for anything mentioning a port. You'll find that -p should suit our purposes nicely. 
 
 ### Solution:
