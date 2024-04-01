@@ -56,7 +56,7 @@ http://surveillance.htb/logout 302      GET        0l        0w        0c http:/
 
 This doesn't give us much to work with, and looking through the found directories doesn't yield much. /admin/login is an administrative login panel, but after manually running some basic password combinations (admin:admin, admin:root, surveillance:password, etc.) I decided to look elsewhere. The landing page mentions that it uses CraftCMS, and hovering over the link reveals the version: 4.4.14!
 
-![A screenshot of the website's landing page. At the bottom of the page, there is a logo stating "CraftCMS". Clicking it reveals the specific version the site is using.](images\image-1.png)
+![A screenshot of the website's landing page. At the bottom of the page, there is a logo stating "CraftCMS". Clicking it reveals the specific version the site is using.](https://github.com/massey-n/CTF-Writeups/blob/main/HackTheBox/images/image-1.png)
 
 A quick google search for "CraftCMS 4.4 exploit" finds one right away! We'll clone the repository and download requirements with `git clone https://github.com/Faelian/CraftCMS_CVE-2023-41892 && pip3 install requests`.
 
@@ -94,15 +94,16 @@ INSERT INTO `users` VALUES (1,NULL,1,0,0,0,1,'admin','Matthew B','Matthew','B','
 
 It appears to be a SHA256 hash, which hashid seems to agree with.
 
-![A screenshot of a Linux terminal. The command "hashid" has been run, identifying a given hash as one of a number of hashes, including SHA256.](images\image-2.png)
+
+![A screenshot of a Linux terminal. The command "hashid" has been run, identifying a given hash as one of a number of hashes, including SHA256.](https://github.com/massey-n/CTF-Writeups/blob/main/HackTheBox/images/image-2.png)
 
 We could run this through johntheripper or hashcat, but I always like to check [hashes.com](https://hashes.com/en/decrypt/hash) first, as it tends to be quicker for easy hashes. Sure enough, it gives us Matthew's password!
 
-![A screenshot of hashes.com, showing that the has was solved. The password is censored.](images\image-3.png)
+![A screenshot of hashes.com, showing that the has was solved. The password is censored.](https://github.com/massey-n/CTF-Writeups/blob/main/HackTheBox/images/image-3.png)
 
 This is for a local mysql database, but we can check to see if they reused it for their login as well! On the attacking machine, I ran `ssh matthew@<IP>` with the recently discovered password, and it worked! Let's grab the user flag and work on escalating to root!
 
-![A screenshot displaying the author's access to the user flag.](images\-4.png)
+![A screenshot displaying the author's access to the user flag.](https://github.com/massey-n/CTF-Writeups/blob/main/HackTheBox/images/image-4.png)
 
 
 # Horizontal Escalation
@@ -117,7 +118,7 @@ I should note that while I found this in linpeas, it can also be discovered by r
 
 Running `curl http://localhost:8080` confirms that something is being hosted internally. I had to do some research here, and found that the best course of action involved SSH Local Port Forwarding. The command looks like `ssh -L <local_port>:<atttacking_IP>:8080 matthew@<target_IP>`. This command connects to ssh as matthew, and forwards requests to \<attacking_IP>:\<local_port>. This means that we can browse to the local website! I used 9990 as my local port, so I browsed to http://localhost:9990, and was greeted with the ZoneMinder login page!
 
-![A screenshot of the ZoneMinder login page. It includes fields for a username and password.](images\image-5.png)
+![A screenshot of the ZoneMinder login page. It includes fields for a username and password.](https://github.com/massey-n/CTF-Writeups/blob/main/HackTheBox/images/image-5.png)
 
 I tried to use the password mentioned by linpeas with various usernames, but to no avail. We can get the version number from our ssh session by running `apt list --installed | grep zoneminder`, which reveals that the server is running ZoneMinder 1.36.32. A quick google search one again reveals an unauthenticated RCE exploit for this version! We can download this one to our attacking machine with `git clone https://github.com/rvizx/CVE-2023-26035 && cd cve-2023-26035`. As always, it is good practice to read through the exploit and understand what it is doing. This exploit does the following:
 
@@ -139,7 +140,7 @@ reset
 
 The first enumeration command I run, `sudo -l`, results in the following:
 
-![An image depicting the results of the sudo -l command. The user can execute sudo without a password on files starting with /usr/bin/zm and ending in .pl](images\image-6.png)
+![An image depicting the results of the sudo -l command. The user can execute sudo without a password on files starting with /usr/bin/zm and ending in .pl](https://github.com/massey-n/CTF-Writeups/blob/main/HackTheBox/images/image-6.png)
 
 This may look somewhat confusing if you are unfamiliar with regexes. What this means is that the user zoneminder can execute files starting with /usr/bin/zm, followed by any number of letters, and ending in .pl (the extension for Perl programs). This means we could execute a file called /usr/bin/zmedit.pl, but no /usr/bin/zm_edit.pl, as the underscore is not a letter. We can check which of these files exist with `ls -l /usr/bin/zm[a-zA-Z]*.pl`, returning 18 files! Our best shot is probably here, so let's dive in!
 
@@ -147,7 +148,7 @@ I went through each of the scripts looking for potential injections. My first th
 
 My next step was to look at the usage of each script in hopes that they implicitly trusted my input, executing it in a command. This was done via a combination of `./<script.pl> -h`, manually trying inputs to see what the output looked like, and reading through the code. This was a bit tedious. but I eventually found something interesting in zmupdate.pl:
 
-![A screenshot of the results of a command reading './zmupdate.pl' -v 1 -u root'. It appears that the input is placed directly into a mysql command](images\image-7.png)
+![A screenshot of the results of a command reading './zmupdate.pl' -v 1 -u root'. It appears that the input is placed directly into a mysql command](https://github.com/massey-n/CTF-Writeups/blob/main/HackTheBox/images/image-7.png)
 
 This command is used to update zoneminder. The -v flag signals the version to use. I am using 1, which is a downgrade, to ensure the command executes. -u is the username that the script will attempt to connect to MySQL with. What is particularly interesting are the two lines at the end:
 
@@ -177,11 +178,11 @@ Command 'mysql -u;echo "zoneminder ALL=(ALL) NOPASSWD:ALL | tee -a /etc/sudoers.
 
 It looks like the command executed as expected, and if we run sudo -l again, we will notice a new line:
 
-![A screenshot of the output of sudo -l, displaying that zoneminder can execute anything as root without a password](images\image-8.png)
+![A screenshot of the output of sudo -l, displaying that zoneminder can execute anything as root without a password](https://github.com/massey-n/CTF-Writeups/blob/main/HackTheBox/images/image-8.png)
 
 We did it! Let's run `sudo su` to switch to root, and grab the flag.
 
-![A screenshot displaying that the author now has access to the root flag.](images\image-9.png)
+![A screenshot displaying that the author now has access to the root flag.](https://github.com/massey-n/CTF-Writeups/blob/main/HackTheBox/images/image-9.png)
 
 
 # Conclusion
